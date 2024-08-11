@@ -5,6 +5,12 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
+token = os.getenv('TOKEN')
+if not token:
+    print("Error: TOKEN environment variable is not set.")
+else:
+    print(f'TOKEN loaded successfully: {token}')
+
 # Set up intents
 intents = discord.Intents.default()
 intents.message_content = True  # Ensure that your bot can read message content
@@ -26,4 +32,4 @@ async def on_message(message):
     if message.content.startswith('$hi'):
         await message.channel.send('Hola!')
 
-client.run(os.getenv('TOKEN'))
+client.run(token)
