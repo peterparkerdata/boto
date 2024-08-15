@@ -1,35 +1,107 @@
 from dotenv import load_dotenv
+from openai import OpenAI
 import discord
+import time
 import os
 
 # Load environment variables from .env file
 load_dotenv()
+OPENAI_KEY = os.getenv('OPENAI_KEY')
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-token = os.getenv('TOKEN')
-if not token:
-    print("Error: TOKEN environment variable is not set.")
+if not DISCORD_TOKEN:
+    print("Error: DISCORD_TOKEN environment variable is not set.")
 else:
-    print(f'TOKEN loaded successfully: {token}')
+    print(f'DISCORD_TOKEN loaded successfully: {DISCORD_TOKEN}')
 
-# Set up intents
+
+# Initialize the OpenAI client
+openai_client = OpenAI(api_key=OPENAI_KEY)
+
+def create_thread():
+    return openai_client.beta.threads.create()
+
+def send_message(thread_id, assistant_id, content):
+    openai_client.beta.threads.messages.create(
+        thread_id=thread_id,
+        role="user",
+        content=content
+    )
+    
+    run = openai_client.beta.threads.runs.create(
+        thread_id=thread_id,
+        assistant_id=assistant_id
+    )
+    
+    while True:
+        run_status = openai_client.beta.threads.runs.retrieve(
+            thread_id=thread_id,
+            run_id=run.id
+        )
+        if run_status.status == "completed":
+            break
+        time.sleep(1)
+    
+    messages = openai_client.beta.threads.messages.list(thread_id=thread_id)
+    return messages.data[0].content[0].text.value
+
+def conversation():
+    thread = create_thread()    
+    initial_prompt = "Hi!"    
+    response = send_message(thread.id, ASSISTANT_ID, initial_prompt)    
+    print(f"Assistant: {response}")    
+    print("---")
+
+# Set up discord
 intents = discord.Intents.default()
-intents.message_content = True  # Ensure that your bot can read message content
+intents.message_content = True  
+discord_client = discord.Client(intents=intents)
 
-client = discord.Client(intents=intents)
-
-@client.event
+@discord_client.event
 async def on_ready():
-    print('We have logged in as {0.user}'.format(client))
+    print('We have logged in as {0.user}'.format(discord_client))
 
-@client.event
+@discord_client.event
 async def on_message(message):
-    if message.author == client.user:
+    thread = create_thread()            
+    if message.author == discord_client.user:
         return
 
     if message.content.startswith('$hello'):
         await message.channel.send('Hello!')
 
-    if message.content.startswith('$hi'):
-        await message.channel.send('Hola!')
+    if message.content.startswith('$question'):
+        print(f"Message: {message.content}")                
+        message_content = message.content.split("$question")[1]
+        print(f"Question: {message_content}")    
+        response = send_message(thread.id, ASSISTANT_ID, message_content)    
+        print(f"Assistant: {response}")    
+        print("---")
+        await message.channel.send(response)
 
-client.run(token)
+discord_client.run(DISCORD_TOKEN)
+
+
+# # Set up intents
+# intents = discord.Intents.default()
+# intents.message_content = True  # Ensure that your bot can read message content
+
+# client = discord.Client(intents=intents)
+
+# @client.event
+# async def on_ready():
+#     print('We have logged in as {0.user}'.format(client))
+
+# @client.event
+# async def on_message(message):
+#     if message.author == client.user:
+#         return
+
+#     if message.content.startswith('$hello'):
+#         await message.channel.send('Hello!')
+
+#     if message.content.startswith('$hi'):
+#         await message.channel.send('Hola!')
+
+# client.run(DISCORD_TOKEN)
